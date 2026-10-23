@@ -26,6 +26,8 @@ struct Http2Handle {
     int owner;
     std::size_t poolSize;
     std::shared_ptr<std::byte[]> cookieMemory;
+    int authEnabled = 1;
+    int autoRedirect = 1;
 };
 
 static std::atomic<int> g_nextHandle{1};
@@ -124,9 +126,14 @@ int APS5_VABI sceHttp2CreateRequestWithURL(int tmpl_id, const char* method, cons
     (void)url;
     (void)content_length;
     std::lock_guard lock(g_handlesMutex);
-    if (FindHandle(tmpl_id, Http2Kind::Template) == nullptr) return ERROR_INVALID_ID;
+    const Http2Handle* tmpl = FindHandle(tmpl_id, Http2Kind::Template);
+    if (tmpl == nullptr) return ERROR_INVALID_ID;
+    const int authEnabled = tmpl->authEnabled;
+    const int autoRedirect = tmpl->autoRedirect;
     const int id = g_nextHandle.fetch_add(1, std::memory_order_relaxed);
     g_handles[id] = {Http2Kind::Request, tmpl_id, 0};
+    g_handles[id].authEnabled = authEnabled;
+    g_handles[id].autoRedirect = autoRedirect;
     return id;
 }
 
@@ -223,14 +230,18 @@ int APS5_VABI sceHttp2SendRequestAsync(int req_id, const void* post_data, size_t
 }
 
 int APS5_VABI sceHttp2SetAuthEnabled(int id, int is_enable) {
-    (void)id;
-    (void)is_enable;
+    std::lock_guard lock(g_handlesMutex);
+    Http2Handle* handle = FindAnyHandle(id);
+    if (handle == nullptr) return ERROR_INVALID_ID;
+    handle->authEnabled = is_enable != 0;
     return 0;
 }
 
 int APS5_VABI sceHttp2SetAutoRedirect(int id, int enable) {
-    (void)id;
-    (void)enable;
+    std::lock_guard lock(g_handlesMutex);
+    Http2Handle* handle = FindAnyHandle(id);
+    if (handle == nullptr) return ERROR_INVALID_ID;
+    handle->autoRedirect = enable != 0;
     return 0;
 }
 
@@ -441,13 +452,21 @@ int APS5_VABI sceHttp2CookieImport(void) {
     return 0;
 }
 
-int APS5_VABI sceHttp2GetAuthEnabled(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceHttp2GetAuthEnabled(int id, int* enable) {
+    if (enable == nullptr) return ERROR_NULL_POINTER;
+    std::lock_guard lock(g_handlesMutex);
+    const Http2Handle* handle = FindAnyHandle(id);
+    if (handle == nullptr) return ERROR_INVALID_ID;
+    *enable = handle->authEnabled;
     return 0;
 }
 
-int APS5_VABI sceHttp2GetAutoRedirect(void) {
-    NotImplemented_nid_no_patch(__func__);
+int APS5_VABI sceHttp2GetAutoRedirect(int id, int* enable) {
+    if (enable == nullptr) return ERROR_NULL_POINTER;
+    std::lock_guard lock(g_handlesMutex);
+    const Http2Handle* handle = FindAnyHandle(id);
+    if (handle == nullptr) return ERROR_INVALID_ID;
+    *enable = handle->autoRedirect;
     return 0;
 }
 
