@@ -808,6 +808,10 @@ const uint8_t* APS5_VABI sceCesRefersUcsProfileCp855(void) {
     return singleByteProfile(SingleByte::Cp855);
 }
 
+const uint8_t* APS5_VABI sceCesRefersUcsProfileCp858(void) {
+    return singleByteProfile(SingleByte::Cp858);
+}
+
 const uint8_t* APS5_VABI sceCesRefersUcsProfileCp860(void) {
     return singleByteProfile(SingleByte::Cp860);
 }
